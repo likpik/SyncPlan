@@ -24,22 +24,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import kotlinx.coroutines.delay
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 
 @Composable
 fun SplashScreen(onSplashFinished: () -> Unit) {
     var startAnimation by remember { mutableStateOf(false) }
     val offsetX by animateDpAsState(
         targetValue = if (startAnimation) (-20).dp else 0.dp,
-        animationSpec = tween(durationMillis = 1000)
+        animationSpec = tween(durationMillis = 1000),
+        label = "splash_animation"
     )
 
     LaunchedEffect(true) {
         startAnimation = true
-        delay(1000)
+        delay(2000)
         onSplashFinished()
     }
 
@@ -57,6 +55,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
                     .size(120.dp)
                     .offset(x = offsetX)
             )
+
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = "SyncPlan",

@@ -1,4 +1,4 @@
-package com.example.sharedplanner.ui.groups
+package com.example.syncplan.ui.groups
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -10,14 +10,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.sharedplanner.viewmodel.GroupViewModel
-import com.example.sharedplanner.viewmodel.CalendarViewModel
+import com.example.syncplan.viewmodel.GroupViewModel
+import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
     groupViewModel: GroupViewModel,
-    calendarViewModel: CalendarViewModel
+    calendarViewModel: ExtendedCalendarViewModel
 ) {
     val groups by groupViewModel.groups.collectAsState()
     val isLoading by groupViewModel.isLoading.collectAsState()
@@ -29,7 +29,6 @@ fun GroupsScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                // Dodaj grupę testową (przykład)
                 groupViewModel.createGroup(
                     name = "Nowa grupa",
                     description = "Opis grupy",
@@ -46,24 +45,28 @@ fun GroupsScreen(
             .fillMaxSize()
             .padding(padding)) {
 
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (groups.isEmpty()) {
-                Text("Brak grup", modifier = Modifier.align(Alignment.Center))
-            } else {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    groups.forEach { group ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            onClick = {
-                                groupViewModel.selectGroup(group)
-                            }
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(group.name, style = MaterialTheme.typography.titleLarge)
-                                Text(group.description, style = MaterialTheme.typography.bodyMedium)
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                groups.isEmpty() -> {
+                    Text("Brak grup", modifier = Modifier.align(Alignment.Center))
+                }
+                else -> {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        groups.forEach { group ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                onClick = {
+                                    groupViewModel.selectGroup(group)
+                                }
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(group.name, style = MaterialTheme.typography.titleLarge)
+                                    Text(group.description, style = MaterialTheme.typography.bodyMedium)
+                                }
                             }
                         }
                     }

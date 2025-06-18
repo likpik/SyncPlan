@@ -1,4 +1,4 @@
-package com.example.sharedplanner.viewmodel
+package com.example.syncplan.viewmodel
 
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +13,7 @@ data class Group(
     val createdBy: String,
     val members: List<GroupMember>,
     val createdAt: Long = System.currentTimeMillis(),
-    val color: String = "#2196F3" // Material Blue
+    val color: String = "#2196F3"
 )
 
 data class GroupMember(
@@ -67,7 +67,6 @@ class GroupViewModel : ViewModel() {
     }
 
     private fun loadSampleData() {
-        // Sample data for demonstration
         val sampleGroups = listOf(
             Group(
                 name = "Znajomi ze studiów",
@@ -92,6 +91,7 @@ class GroupViewModel : ViewModel() {
                 color = "#FF9800"
             )
         )
+
         _groups.value = sampleGroups
     }
 
@@ -162,60 +162,6 @@ class GroupViewModel : ViewModel() {
         }
     }
 
-    fun inviteToGroup(
-        groupId: String,
-        groupName: String,
-        invitedBy: String,
-        invitedByName: String,
-        invitedEmail: String
-    ) {
-        val invitation = GroupInvitation(
-            groupId = groupId,
-            groupName = groupName,
-            invitedBy = invitedBy,
-            invitedByName = invitedByName,
-            invitedEmail = invitedEmail
-        )
-
-        _invitations.value = _invitations.value + invitation
-    }
-
-    fun respondToInvitation(invitationId: String, accept: Boolean, userInfo: GroupMember? = null) {
-        val invitation = _invitations.value.find { it.id == invitationId }
-        if (invitation != null) {
-            val newStatus = if (accept) InvitationStatus.Accepted else InvitationStatus.Declined
-
-            _invitations.value = _invitations.value.map { inv ->
-                if (inv.id == invitationId) {
-                    inv.copy(status = newStatus)
-                } else {
-                    inv
-                }
-            }
-
-            if (accept && userInfo != null) {
-                addMemberToGroup(invitation.groupId, userInfo)
-            }
-        }
-    }
-
-    fun deleteGroup(groupId: String) {
-        _groups.value = _groups.value.filter { it.id != groupId }
-        if (_selectedGroup.value?.id == groupId) {
-            _selectedGroup.value = null
-        }
-    }
-
-    fun updateGroup(groupId: String, name: String, description: String, color: String) {
-        _groups.value = _groups.value.map { group ->
-            if (group.id == groupId) {
-                group.copy(name = name, description = description, color = color)
-            } else {
-                group
-            }
-        }
-    }
-
     fun getGroupById(groupId: String): Group? {
         return _groups.value.find { it.id == groupId }
     }
@@ -226,29 +172,14 @@ class GroupViewModel : ViewModel() {
         }
     }
 
-    fun isUserAdmin(groupId: String, userId: String): Boolean {
-        val group = getGroupById(groupId)
-        return group?.members?.find { it.userId == userId }?.role == MemberRole.Admin
-    }
-
-    fun getPendingInvitations(): List<GroupInvitation> {
-        return _invitations.value.filter { it.status == InvitationStatus.Pending }
-    }
-
     fun clearError() {
         _errorMessage.value = null
     }
 
     companion object {
         val DEFAULT_GROUP_COLORS = listOf(
-            "#2196F3", // Blue
-            "#4CAF50", // Green
-            "#FF9800", // Orange
-            "#9C27B0", // Purple
-            "#F44336", // Red
-            "#607D8B", // Blue Grey
-            "#795548", // Brown
-            "#E91E63"  // Pink
+            "#2196F3", "#4CAF50", "#FF9800", "#9C27B0",
+            "#F44336", "#607D8B", "#795548", "#E91E63"
         )
     }
 }

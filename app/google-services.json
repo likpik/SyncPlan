@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "56312471732",
+    "project_id": "syncplan-e3cb9",
+    "storage_bucket": "syncplan-e3cb9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:56312471732:android:a1cab1a27462828dc037e1",
+        "android_client_info": {
+          "package_name": "com.example.syncplan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHuP3tEHgtLpdkB0yvHwZMEQzX8UEp43s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

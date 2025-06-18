@@ -1,7 +1,6 @@
-package com.example.sharedplanner.ui.auth
+package com.example.syncplan.ui.auth
 
 import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -14,13 +13,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.sharedplanner.viewmodel.AuthViewModel
+import com.example.syncplan.viewmodel.AuthViewModel
 import com.facebook.CallbackManager
 import com.facebook.FacebookCallback
 import com.facebook.FacebookException
 import com.facebook.login.LoginManager
 import com.facebook.login.LoginResult
-import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,17 +27,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
     val isLoading by authViewModel.isLoading.collectAsState()
     val errorMessage by authViewModel.errorMessage.collectAsState()
 
-    val loginLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        authViewModel.getCallbackManager().onActivityResult(
-            requestCode = 64206, // Facebook request code
-            resultCode = result.resultCode,
-            data = result.data
-        )
-    }
-
-    // Rejestracja callbacka Facebooka (przeniesiona z końca pliku)
+    // Zarejestruj callback dla Facebook Login
     LaunchedEffect(Unit) {
         LoginManager.getInstance().registerCallback(
             authViewModel.getCallbackManager(),
@@ -66,7 +54,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // App Logo/Icon
+        // Logo i tytuł
         Card(
             modifier = Modifier
                 .size(120.dp)
@@ -87,7 +75,6 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             }
         }
 
-        // App Title
         Text(
             text = "SyncPlan",
             fontSize = 28.sp,
@@ -104,7 +91,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             modifier = Modifier.padding(bottom = 48.dp)
         )
 
-        // Facebook Login Button
+        // Przycisk Facebook Login
         Button(
             onClick = {
                 if (!isLoading) {
@@ -120,7 +107,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                 .height(56.dp),
             enabled = !isLoading,
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF1877F2) // Facebook Blue
+                containerColor = Color(0xFF1877F2)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -150,7 +137,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             }
         }
 
-        // Error Message
+        // Wyświetlanie błędów
         errorMessage?.let { error ->
             Card(
                 modifier = Modifier

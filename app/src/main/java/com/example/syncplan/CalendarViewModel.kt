@@ -1,9 +1,11 @@
-package com.example.sharedplanner.viewmodel
+package com.example.syncplan.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -18,8 +20,37 @@ data class Event(
     val endDateTime: LocalDateTime,
     val createdBy: String,
     val attendees: List<String> = emptyList(),
-    val isAvailability: Boolean = false // true for availability slots, false for events
+    val location: Location? = null,
+    val isAvailability: Boolean = false,
+    val rsvpResponses: Map<String, RSVPResponse> = emptyMap(),
+    val rsvpDeadline: LocalDateTime? = null,
+    val maxAttendees: Int? = null,
+    val chatId: String? = null,
+    val weatherInfo: String? = null,
+    val createdAt: LocalDateTime = LocalDateTime.now()
 )
+
+data class Location(
+    val name: String,
+    val address: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+data class RSVPResponse(
+    val userId: String,
+    val status: RSVPStatus,
+    val timestamp: LocalDateTime = LocalDateTime.now(),
+    val note: String = "",
+    val guestCount: Int = 0
+)
+
+enum class RSVPStatus {
+    ATTENDING,
+    DECLINED,
+    MAYBE,
+    PENDING
+}
 
 data class AvailabilitySlot(
     val id: String = UUID.randomUUID().toString(),
@@ -32,17 +63,20 @@ data class AvailabilitySlot(
 
 data class MeetingSuggestion(
     val suggestedDateTime: LocalDateTime,
-    val duration: Int, // in minutes
+    val duration: Int,
     val availableUsers: List<String>,
-    val score: Double // how well it fits everyone's schedule
+    val score: Double
 )
 
-class CalendarViewModel : ViewModel() {
+class ExtendedCalendarViewModel : ViewModel() {
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()
+
+    private val _selectedEvent = MutableStateFlow<Event?>(null)
+    val selectedEvent: StateFlow<Event?> = _selectedEvent.asStateFlow()
 
     private val _availabilitySlots = MutableStateFlow<List<AvailabilitySlot>>(emptyList())
     val availabilitySlots: StateFlow<List<AvailabilitySlot>> = _availabilitySlots.asStateFlow()
@@ -53,8 +87,15 @@ class CalendarViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date
+    }
+
+    fun selectEvent(event: Event) {
+        _selectedEvent.value = event
     }
 
     fun addEvent(
@@ -63,7 +104,10 @@ class CalendarViewModel : ViewModel() {
         startDateTime: LocalDateTime,
         endDateTime: LocalDateTime,
         createdBy: String,
-        attendees: List<String> = emptyList()
+        attendees: List<String> = emptyList(),
+        location: Location? = null,
+        rsvpDeadline: LocalDateTime? = null,
+        maxAttendees: Int? = null
     ) {
         val newEvent = Event(
             title = title,
@@ -71,11 +115,52 @@ class CalendarViewModel : ViewModel() {
             startDateTime = startDateTime,
             endDateTime = endDateTime,
             createdBy = createdBy,
-            attendees = attendees
+            attendees = attendees,
+            location = location,
+            rsvpDeadline = rsvpDeadline,
+            maxAttendees = maxAttendees,
+            rsvpResponses = attendees.associateWith { userId ->
+                RSVPResponse(
+                    userId = userId,
+                    status = RSVPStatus.PENDING
+                )
+            }
         )
 
         _events.value = _events.value + newEvent
-        generateMeetingSuggestions(attendees)
+    }
+
+    fun updateEvent(eventId: String, updatedEvent: Event) {
+        _events.value = _events.value.map { event ->
+            if (event.id == eventId) updatedEvent else event
+        }
+    }
+
+    fun deleteEvent(eventId: String) {
+        _events.value = _events.value.filter { it.id != eventId }
+    }
+
+    fun respondToRSVP(eventId: String, userId: String, status: RSVPStatus, note: String = "", guestCount: Int = 0) {
+        val event = _events.value.find { it.id == eventId } ?: return
+        val response = RSVPResponse(
+            userId = userId,
+            status = status,
+            timestamp = LocalDateTime.now(),
+            note = note,
+            guestCount = guestCount
+        )
+
+        val updatedResponses = event.rsvpResponses.toMutableMap().apply {
+            put(userId, response)
+        }
+
+        val updatedEvent = event.copy(rsvpResponses = updatedResponses)
+        updateEvent(eventId, updatedEvent)
+    }
+
+    fun getRSVPStats(eventId: String): Map<RSVPStatus, Int> {
+        val event = _events.value.find { it.id == eventId } ?: return emptyMap()
+        return event.rsvpResponses.values.groupingBy { it.status }.eachCount()
     }
 
     fun addAvailabilitySlot(
@@ -85,11 +170,6 @@ class CalendarViewModel : ViewModel() {
         endTime: LocalTime,
         isAvailable: Boolean = true
     ) {
-        // Remove existing slot for the same user and time
-        _availabilitySlots.value = _availabilitySlots.value.filter {
-            !(it.userId == userId && it.date == date && it.startTime == startTime && it.endTime == endTime)
-        }
-
         val newSlot = AvailabilitySlot(
             userId = userId,
             date = date,
@@ -112,86 +192,7 @@ class CalendarViewModel : ViewModel() {
             .sortedBy { it.startTime }
     }
 
-    fun generateMeetingSuggestions(userIds: List<String>, durationMinutes: Int = 60) {
-        _isLoading.value = true
-
-        val suggestions = mutableListOf<MeetingSuggestion>()
-        val today = LocalDate.now()
-
-        // Look for suggestions in the next 14 days
-        for (i in 0..13) {
-            val checkDate = today.plusDays(i.toLong())
-            val availableSlots = getAvailabilityForDate(checkDate)
-
-            // Find overlapping availability for all users
-            val userAvailability = userIds.associateWith { userId ->
-                availableSlots.filter { it.userId == userId && it.isAvailable }
-            }
-
-            // Check each hour from 9 AM to 5 PM
-            for (hour in 9..16) {
-                val startTime = LocalTime.of(hour, 0)
-                val endTime = startTime.plusMinutes(durationMinutes.toLong())
-
-                val availableUsers = userIds.filter { userId ->
-                    val userSlots = userAvailability[userId] ?: emptyList()
-                    userSlots.any { slot ->
-                        slot.startTime <= startTime && slot.endTime >= endTime
-                    }
-                }
-
-                if (availableUsers.size >= userIds.size * 0.8) { // At least 80% of users available
-                    val score = availableUsers.size.toDouble() / userIds.size
-                    suggestions.add(
-                        MeetingSuggestion(
-                            suggestedDateTime = LocalDateTime.of(checkDate, startTime),
-                            duration = durationMinutes,
-                            availableUsers = availableUsers,
-                            score = score
-                        )
-                    )
-                }
-            }
-        }
-
-        _meetingSuggestions.value = suggestions.sortedByDescending { it.score }
-            .take(10) // Show top 10 suggestions
-        _isLoading.value = false
-    }
-
-    fun deleteEvent(eventId: String) {
-        _events.value = _events.value.filter { it.id != eventId }
-    }
-
-    fun updateEvent(eventId: String, updatedEvent: Event) {
-        _events.value = _events.value.map { event ->
-            if (event.id == eventId) updatedEvent else event
-        }
-    }
-
-    fun getUserAvailabilityStatus(userId: String, dateTime: LocalDateTime): Boolean {
-        val date = dateTime.toLocalDate()
-        val time = dateTime.toLocalTime()
-
-        val userSlots = _availabilitySlots.value.filter {
-            it.userId == userId && it.date == date
-        }
-
-        return userSlots.any { slot ->
-            time >= slot.startTime && time <= slot.endTime && slot.isAvailable
-        }
-    }
-
-    fun getWeekDates(baseDate: LocalDate): List<LocalDate> {
-        val startOfWeek = baseDate.minusDays(baseDate.dayOfWeek.value.toLong() - 1)
-        return (0..6).map { startOfWeek.plusDays(it.toLong()) }
-    }
-
-    fun formatDateTime(dateTime: LocalDateTime): String {
-        return dateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-    }
-
-    fun formatTime(time: LocalTime): String {
-        return time.format(DateTimeFormatter.ofPattern("HH:mm"))
+    fun clearError() {
+        _errorMessage.value = null
     }
 }

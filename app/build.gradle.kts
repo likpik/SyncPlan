@@ -2,8 +2,12 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-}
+    id ("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
+    id("kotlin-kapt")
+    id("com.google.gms.google-services")
 
+}
+apply(plugin = "com.google.gms.google-services")
 android {
     namespace = "com.example.syncplan"
     compileSdk = 35
@@ -57,7 +61,23 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+    implementation(platform("com.google.firebase:firebase-bom:33.15.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.facebook.android:facebook-android-sdk:16.3.0")
+    implementation ("com.google.firebase:firebase-messaging")
+
+
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("com.facebook.android:facebook-login:latest.release")
     implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("com.facebook.android:facebook-login:16.3.0")
+
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    implementation ("androidx.work:work-runtime-ktx:2.9.0")
+
+    implementation ("com.google.maps.android:maps-compose:2.11.4")
+    implementation ("com.google.android.gms:play-services-maps:18.2.0")
+
 }

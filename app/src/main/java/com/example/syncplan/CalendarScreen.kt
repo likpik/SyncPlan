@@ -1,11 +1,10 @@
-package com.example.sharedplanner.ui.calendar
+package com.example.syncplan.ui.calendar
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,18 +22,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.sharedplanner.viewmodel.CalendarViewModel
-import com.example.sharedplanner.viewmodel.GroupViewModel
-import com.example.sharedplanner.viewmodel.Event
+import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
+import com.example.syncplan.viewmodel.GroupViewModel
+import com.example.syncplan.viewmodel.Event
+import com.example.syncplan.viewmodel.AvailabilitySlot
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
-    calendarViewModel: CalendarViewModel,
+    calendarViewModel: ExtendedCalendarViewModel,
     groupViewModel: GroupViewModel
 ) {
     val selectedDate by calendarViewModel.selectedDate.collectAsState()
@@ -167,43 +166,44 @@ fun CalendarScreen(
                 }
             }
         }
-    }
 
-    // Dialogs
-    if (showAddEventDialog) {
-        AddEventDialog(
-            selectedDate = selectedDate,
-            groups = groups,
-            onDismiss = { showAddEventDialog = false },
-            onEventAdded = { title, description, startDateTime, endDateTime, attendees ->
-                calendarViewModel.addEvent(
-                    title = title,
-                    description = description,
-                    startDateTime = startDateTime,
-                    endDateTime = endDateTime,
-                    createdBy = "current_user", // TODO: Get from AuthViewModel
-                    attendees = attendees
-                )
-                showAddEventDialog = false
-            }
-        )
-    }
+        // Dialogs
+        if (showAddEventDialog) {
+            AddEventDialog(
+                selectedDate = selectedDate,
+                groups = groups,
+                onDismiss = { showAddEventDialog = false },
+                onEventAdded = { title, description, startDateTime, endDateTime, attendees, location ->
+                    calendarViewModel.addEvent(
+                        title = title,
+                        description = description,
+                        startDateTime = startDateTime,
+                        endDateTime = endDateTime,
+                        createdBy = "current_user",
+                        attendees = attendees,
+                        location = location
+                    )
+                    showAddEventDialog = false
+                }
+            )
+        }
 
-    if (showAvailabilityDialog) {
-        AvailabilityDialog(
-            selectedDate = selectedDate,
-            onDismiss = { showAvailabilityDialog = false },
-            onAvailabilitySet = { date, startTime, endTime, isAvailable ->
-                calendarViewModel.addAvailabilitySlot(
-                    userId = "current_user", // TODO: Get from AuthViewModel
-                    date = date,
-                    startTime = startTime,
-                    endTime = endTime,
-                    isAvailable = isAvailable
-                )
-                showAvailabilityDialog = false
-            }
-        )
+        if (showAvailabilityDialog) {
+            AvailabilityDialog(
+                selectedDate = selectedDate,
+                onDismiss = { showAvailabilityDialog = false },
+                onAvailabilitySet = { date, startTime, endTime, isAvailable ->
+                    calendarViewModel.addAvailabilitySlot(
+                        userId = "current_user",
+                        date = date,
+                        startTime = startTime,
+                        endTime = endTime,
+                        isAvailable = isAvailable
+                    )
+                    showAvailabilityDialog = false
+                }
+            )
+        }
     }
 }
 
@@ -212,15 +212,9 @@ fun CalendarWeekView(
     selectedDate: LocalDate,
     currentMonth: LocalDate,
     events: List<Event>,
-    availabilitySlots: List<com.example.sharedplanner.viewmodel.AvailabilitySlot>,
+    availabilitySlots: List<AvailabilitySlot>,
     onDateSelected: (LocalDate) -> Unit
 ) {
-    val weekDates = remember(currentMonth) {
-        val startOfWeek = currentMonth.withDayOfMonth(1)
-            .minusDays(currentMonth.withDayOfMonth(1).dayOfWeek.value.toLong() - 1)
-        (0..6).map { startOfWeek.plusDays(it.toLong()) }
-    }
-
     Column {
         // Week days header
         Row(
