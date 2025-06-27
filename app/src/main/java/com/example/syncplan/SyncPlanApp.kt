@@ -40,7 +40,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Chat : Screen("chat", "Czaty", Icons.Filled.Chat)
     object Profile : Screen("profile", "Profil", Icons.Filled.Person)
 }
-
+//a
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedSyncPlanApp() {
