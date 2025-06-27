@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -144,6 +146,25 @@ fun EnhancedSyncPlanApp() {
                             groupViewModel = groupViewModel,
                             calendarViewModel = calendarViewModel
                         )
+                    }
+
+                    composable(
+                        route = "groupDetails/{groupId}",
+                        arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val groupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
+                        val group = groupViewModel.getGroupById(groupId)
+
+                        if (group != null) {
+                            GroupDetailScreen(
+                                group = group,
+                                groupViewModel = groupViewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        } else {
+                            // Można wyświetlić ekran błędu lub wrócić
+                            Text("Nie znaleziono grupy o ID: $groupId")
+                        }
                     }
 
                     composable(Screen.Chat.route) {
