@@ -148,7 +148,7 @@ fun AddEventDialog(
     selectedDate: LocalDate,
     groups: List<Group>,
     onDismiss: () -> Unit,
-    onEventAdded: (String, String, LocalDateTime, LocalDateTime, List<String>, Location?) -> Unit
+    onEventAdded: (String, String, LocalDateTime, LocalDateTime, List<String>, groupId: String?, Location?) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -276,6 +276,7 @@ fun AddEventDialog(
                                     LocalDateTime.of(selectedDate, startTime),
                                     LocalDateTime.of(selectedDate, endTime),
                                     attendees,
+                                    selectedGroup?.id,
                                     null
                                 )
                             }

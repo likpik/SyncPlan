@@ -1,15 +1,13 @@
 package com.example.syncplan.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.util.*
 
 data class Event(
@@ -20,6 +18,7 @@ data class Event(
     val endDateTime: LocalDateTime,
     val createdBy: String,
     val attendees: List<String> = emptyList(),
+    val groupId: String?,
     val location: Location? = null,
     val isAvailability: Boolean = false,
     val rsvpResponses: Map<String, RSVPResponse> = emptyMap(),
@@ -78,6 +77,9 @@ class ExtendedCalendarViewModel : ViewModel() {
     private val _selectedEvent = MutableStateFlow<Event?>(null)
     val selectedEvent: StateFlow<Event?> = _selectedEvent.asStateFlow()
 
+    private val _selectedGroupId = MutableStateFlow<String?>(null)
+    val selectedGroupId: StateFlow<String?> = _selectedGroupId.asStateFlow()
+
     private val _availabilitySlots = MutableStateFlow<List<AvailabilitySlot>>(emptyList())
     val availabilitySlots: StateFlow<List<AvailabilitySlot>> = _availabilitySlots.asStateFlow()
 
@@ -98,6 +100,10 @@ class ExtendedCalendarViewModel : ViewModel() {
         _selectedEvent.value = event
     }
 
+    fun selectGroup(groupId: String) {
+        _selectedGroupId.value = groupId
+    }
+
     fun addEvent(
         title: String,
         description: String,
@@ -105,6 +111,7 @@ class ExtendedCalendarViewModel : ViewModel() {
         endDateTime: LocalDateTime,
         createdBy: String,
         attendees: List<String> = emptyList(),
+        groupId: String? = null,
         location: Location? = null,
         rsvpDeadline: LocalDateTime? = null,
         maxAttendees: Int? = null
@@ -116,6 +123,7 @@ class ExtendedCalendarViewModel : ViewModel() {
             endDateTime = endDateTime,
             createdBy = createdBy,
             attendees = attendees,
+            groupId = groupId,
             location = location,
             rsvpDeadline = rsvpDeadline,
             maxAttendees = maxAttendees,
@@ -182,8 +190,10 @@ class ExtendedCalendarViewModel : ViewModel() {
     }
 
     fun getEventsForDate(date: LocalDate): List<Event> {
+        val groupId = _selectedGroupId.value
         return _events.value.filter { event ->
-            event.startDateTime.toLocalDate() == date
+            event.startDateTime.toLocalDate() == date &&
+                    (groupId == null || event.groupId == groupId)
         }.sortedBy { it.startDateTime }
     }
 
