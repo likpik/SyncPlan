@@ -1,9 +1,14 @@
 package com.example.syncplan.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.util.*
 
 data class Group(
@@ -13,6 +18,7 @@ data class Group(
     val createdBy: String,
     val members: List<GroupMember>,
     val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
     val color: String = "#2196F3"
 )
 
@@ -46,6 +52,40 @@ enum class InvitationStatus {
     Declined
 }
 
+data class GroupActivityLog(
+    val id: String,
+    val groupId: String,
+    val userId: String,
+    val userName: String,
+    val action: ActivityAction,
+    val details: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+enum class ActivityAction {
+    MEMBER_ADDED,
+    MEMBER_REMOVED,
+    ROLE_CHANGED,
+    GROUP_CREATED,
+    GROUP_UPDATED,
+    EVENT_CREATED,
+    EVENT_UPDATED,
+    EVENT_DELETED
+}
+
+data class GroupEvent(
+    val id: String,
+    val groupId: String,
+    val title: String,
+    val description: String,
+    val startTime: Long,
+    val endTime: Long,
+    val location: String? = null,
+    val createdBy: String,
+    val attendees: List<String> = emptyList(),
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 class GroupViewModel : ViewModel() {
     private val _groups = MutableStateFlow<List<Group>>(emptyList())
     val groups: StateFlow<List<Group>> = _groups.asStateFlow()
@@ -61,6 +101,11 @@ class GroupViewModel : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _events = MutableStateFlow<List<GroupEvent>>(emptyList())
+    val events: StateFlow<List<GroupEvent>> = _events.asStateFlow()
+
+    private val _activityLogs = MutableStateFlow<List<GroupActivityLog>>(emptyList())
 
     init {
         loadSampleData()
@@ -172,8 +217,81 @@ class GroupViewModel : ViewModel() {
         }
     }
 
+    // Update group details
+    suspend fun updateGroup(groupId: String, name: String, description: String, color: String) {
+        try {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            // Simulate API call delay
+            kotlinx.coroutines.delay(1000)
+
+            val currentGroups = _groups.value.toMutableList()
+            val groupIndex = currentGroups.indexOfFirst { it.id == groupId }
+
+            if (groupIndex != -1) {
+                val group = currentGroups[groupIndex]
+                val updatedGroup = group.copy(
+                    name = name,
+                    description = description,
+                    color = color,
+                    updatedAt = System.currentTimeMillis()
+                )
+
+                currentGroups[groupIndex] = updatedGroup
+                _groups.value = currentGroups
+
+                // Log activity
+                logActivity(
+                    groupId = groupId,
+                    userId = "system", // TODO: Get current user
+                    userName = "System",
+                    action = ActivityAction.GROUP_UPDATED,
+                    details = "Grupa została zaktualizowana"
+                )
+            } else {
+                throw Exception("Grupa nie została znaleziona")
+            }
+        } catch (e: Exception) {
+            _errorMessage.value = e.message
+            throw e
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
+    // Get events count for a specific group
+    fun getEventsCount(groupId: String): Flow<Int> {
+        return _events.map { eventsList ->
+            eventsList.count { event -> event.groupId == groupId }
+        }
+    }
+
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    // Private helper function to log activities
+    private fun logActivity(
+        groupId: String,
+        userId: String,
+        userName: String,
+        action: ActivityAction,
+        details: String
+    ) {
+        viewModelScope.launch {
+            val currentLogs = _activityLogs.value.toMutableList()
+            val newLog = GroupActivityLog(
+                id = "log_${System.currentTimeMillis()}",
+                groupId = groupId,
+                userId = userId,
+                userName = userName,
+                action = action,
+                details = details
+            )
+            currentLogs.add(newLog)
+            _activityLogs.value = currentLogs
+        }
     }
 
     companion object {

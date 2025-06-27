@@ -1,5 +1,6 @@
 package com.example.syncplan.ui.calendar
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -26,6 +28,7 @@ import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 import com.example.syncplan.viewmodel.GroupViewModel
 import com.example.syncplan.viewmodel.Event
 import com.example.syncplan.viewmodel.AvailabilitySlot
+import com.example.syncplan.viewmodel.ChatViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -34,23 +37,60 @@ import java.util.*
 @Composable
 fun CalendarScreen(
     calendarViewModel: ExtendedCalendarViewModel,
-    groupViewModel: GroupViewModel
+    groupViewModel: GroupViewModel,
+    chatViewModel: ChatViewModel,
+    onEventClick: (Event) -> Unit,
+    groupId: String? = null,
+    onBackClick: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val selectedDate by calendarViewModel.selectedDate.collectAsState()
-    val events by calendarViewModel.events.collectAsState()
+    val allEvents by calendarViewModel.events.collectAsState()
+    val events = if (groupId != null) {
+        val filtered = allEvents.filter { it.groupId == groupId }
+        Log.d("CalendarDebug", "groupId=$groupId, matchedEvents=${filtered.size}")
+        filtered
+    } else {
+        allEvents
+    }
     val availabilitySlots by calendarViewModel.availabilitySlots.collectAsState()
     val groups by groupViewModel.groups.collectAsState()
+    val meetingSuggestions by calendarViewModel.meetingSuggestions.collectAsState()
+
+    LaunchedEffect(groupId) {
+        Log.d("CalendarDebug", "LaunchedEffect fired with groupId=$groupId")
+        groupId?.let {
+            calendarViewModel.selectGroup(it)
+        }
+    }
 
     var showAddEventDialog by remember { mutableStateOf(false) }
     var showAvailabilityDialog by remember { mutableStateOf(false) }
     var currentMonth by remember { mutableStateOf(LocalDate.now()) }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header with month navigation
+        if (groupId != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { onBackClick() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Wróć")
+                }
+                Text(
+                    text = "Kalendarz grupy",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+        // Calendar Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -58,9 +98,7 @@ fun CalendarScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = { currentMonth = currentMonth.minusMonths(1) }
-            ) {
+            IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
                 Icon(Icons.Default.ChevronLeft, contentDescription = "Poprzedni miesiąc")
             }
 
@@ -70,14 +108,12 @@ fun CalendarScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            IconButton(
-                onClick = { currentMonth = currentMonth.plusMonths(1) }
-            ) {
+            IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
                 Icon(Icons.Default.ChevronRight, contentDescription = "Następny miesiąc")
             }
         }
 
-        // Week view
+        // Calendar Week View
         CalendarWeekView(
             selectedDate = selectedDate,
             currentMonth = currentMonth,
@@ -88,7 +124,7 @@ fun CalendarScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Action buttons
+        // Action Buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -99,7 +135,7 @@ fun CalendarScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Dodaj wydarzenie")
+                Text("Wydarzenie")
             }
 
             OutlinedButton(
@@ -112,7 +148,7 @@ fun CalendarScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Events for selected date
+        // Events List
         Text(
             text = "Wydarzenia - ${selectedDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale("pl")))}",
             fontSize = 18.sp,
@@ -120,14 +156,14 @@ fun CalendarScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        val dayEvents = calendarViewModel.getEventsForDate(selectedDate)
+        val dayEvents = events.filter { it.startDateTime.toLocalDate() == selectedDate }
         val dayAvailability = calendarViewModel.getAvailabilityForDate(selectedDate)
 
         LazyColumn {
             items(dayEvents) { event ->
                 EventCard(
                     event = event,
-                    onEventClick = { /* TODO: Edit event */ }
+                    onEventClick = { onEventClick(event) }
                 )
             }
 
@@ -173,7 +209,8 @@ fun CalendarScreen(
                 selectedDate = selectedDate,
                 groups = groups,
                 onDismiss = { showAddEventDialog = false },
-                onEventAdded = { title, description, startDateTime, endDateTime, attendees, location ->
+                onEventAdded = { title, description, startDateTime, endDateTime, attendees, selectedGroupId, location ->
+                    Log.d("CalendarDebug", "selectedGroupId = ${selectedGroupId}")
                     calendarViewModel.addEvent(
                         title = title,
                         description = description,
@@ -181,6 +218,7 @@ fun CalendarScreen(
                         endDateTime = endDateTime,
                         createdBy = "current_user",
                         attendees = attendees,
+                        groupId = selectedGroupId,
                         location = location
                     )
                     showAddEventDialog = false
