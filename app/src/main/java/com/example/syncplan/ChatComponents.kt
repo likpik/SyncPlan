@@ -494,20 +494,22 @@ fun ChatListItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = chatInfo.eventTitle?.firstOrNull()?.toString() ?: "C",
+                    text = chatInfo.groupName?.firstOrNull()?.uppercase()
+                        ?: chatInfo.eventTitle?.firstOrNull()?.uppercase()
+                        ?: "C",
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold
                 )
             }
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = chatInfo.eventTitle ?: "Czat",
+                    // Zmień logikę pobierania nazwy
+                    text = chatInfo.groupName ?: chatInfo.eventTitle ?: "Czat",
                     fontWeight = FontWeight.Medium,
                     fontSize = 16.sp
                 )
+            }
 
                 chatInfo.lastMessage?.let { lastMessage ->
                     Text(
@@ -556,4 +558,3 @@ fun ChatListItem(
             }
         }
     }
-}

@@ -2,9 +2,13 @@ package com.example.syncplan.viewmodel
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -195,6 +199,16 @@ class ExtendedCalendarViewModel : ViewModel() {
             event.startDateTime.toLocalDate() == date &&
                     (groupId == null || event.groupId == groupId)
         }.sortedBy { it.startDateTime }
+    }
+
+    fun getEventsCountForGroup(groupId: String): StateFlow<Int> {
+        return events.map { allEvents ->
+            allEvents.count { it.groupId == groupId }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
     }
 
     fun getAvailabilityForDate(date: LocalDate): List<AvailabilitySlot> {

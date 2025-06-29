@@ -19,7 +19,8 @@ data class Group(
     val members: List<GroupMember>,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val color: String = "#2196F3"
+    val color: String = "#2196F3",
+    val chatId: String? = null
 )
 
 data class GroupMember(
@@ -86,7 +87,7 @@ data class GroupEvent(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-class GroupViewModel : ViewModel() {
+class GroupViewModel(private val chatViewModel: ChatViewModel) : ViewModel() {
     private val _groups = MutableStateFlow<List<Group>>(emptyList())
     val groups: StateFlow<List<Group>> = _groups.asStateFlow()
 
@@ -137,15 +138,21 @@ class GroupViewModel : ViewModel() {
             )
         )
 
-        _groups.value = sampleGroups
-    }
+        val finalGroups = sampleGroups.map { group ->
+            val chatId = chatViewModel.createGroupChat(group)
+            group.copy(chatId = chatId)
+        }
 
+        _groups.value = finalGroups
+    }
     fun createGroup(
         name: String,
         description: String,
         createdBy: String,
         creatorName: String,
         creatorEmail: String,
+        initialMembers: List<GroupMember>,
+        chatViewModel: ChatViewModel,
         color: String = "#2196F3"
     ) {
         val creator = GroupMember(
@@ -154,35 +161,50 @@ class GroupViewModel : ViewModel() {
             email = creatorEmail,
             role = MemberRole.Admin
         )
+        val allMembers = initialMembers + listOf(creator)
 
-        val newGroup = Group(
+        val initialGroup = Group(
             name = name,
             description = description,
             createdBy = createdBy,
-            members = listOf(creator),
+            members = allMembers,
             color = color
         )
 
-        _groups.value = _groups.value + newGroup
+        val newChatId = chatViewModel.createGroupChat(initialGroup)
+
+        val finalGroup = initialGroup.copy(chatId = newChatId)
+
+        _groups.value = _groups.value + finalGroup
+
     }
 
     fun selectGroup(group: Group) {
         _selectedGroup.value = group
     }
 
-    fun addMemberToGroup(groupId: String, member: GroupMember) {
+    fun addMemberToGroup(groupId: String, member: GroupMember, chatViewModel: ChatViewModel) {
         _groups.value = _groups.value.map { group ->
             if (group.id == groupId) {
-                group.copy(members = group.members + member)
+                val updatedGroup = group.copy(members = group.members + member)
+                updatedGroup.chatId?.let { chatId ->
+                    chatViewModel.addParticipantToChat(chatId, member.userId)
+                }
+                updatedGroup
             } else {
                 group
             }
         }
     }
 
-    fun removeMemberFromGroup(groupId: String, userId: String) {
+    fun removeMemberFromGroup(groupId: String, userId: String, chatViewModel: ChatViewModel) {
         _groups.value = _groups.value.map { group ->
             if (group.id == groupId) {
+                // Usuń użytkownika z powiązanego czatu
+                group.chatId?.let { chatId ->
+                    chatViewModel.removeParticipantFromChat(chatId, userId)
+                }
+                // Zwróć grupę z usuniętym członkiem
                 group.copy(members = group.members.filter { it.userId != userId })
             } else {
                 group

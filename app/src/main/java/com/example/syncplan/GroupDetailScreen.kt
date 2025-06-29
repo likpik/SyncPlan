@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.syncplan.viewmodel.ChatViewModel
+import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 import com.example.syncplan.viewmodel.GroupViewModel
 import com.example.syncplan.viewmodel.Group
 import com.example.syncplan.viewmodel.GroupMember
@@ -36,9 +38,12 @@ import java.util.*
 fun GroupDetailScreen(
     group: Group,
     groupViewModel: GroupViewModel,
+    calendarViewModel: ExtendedCalendarViewModel,
+    chatViewModel: ChatViewModel,
     userSession: User,
     onNavigateBack: () -> Unit,
-    onNavigateToCalendar: (String) -> Unit
+    onNavigateToCalendar: (String) -> Unit,
+    onNavigateToChat: (String) -> Unit
 ) {
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
@@ -51,7 +56,7 @@ fun GroupDetailScreen(
     val currentUserId = userSession.id
     val currentUserRole = group.members.find { it.userId == currentUserId }?.role
     val canManageMembers = currentUserRole == MemberRole.Admin
-    val eventsCount by groupViewModel.getEventsCount(group.id).collectAsState(initial = 0)
+    val eventsCount by calendarViewModel.getEventsCountForGroup(group.id).collectAsState()
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -157,6 +162,18 @@ fun GroupDetailScreen(
                     Text("Zobacz kalendarz grupy")
                 }
             }
+            if (group.chatId != null) {
+                item {
+                    Button(
+                        onClick = { onNavigateToChat(group.chatId) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Chat, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Przejdź do czatu grupowego")
+                    }
+                }
+            }
         }
     }
 
@@ -184,7 +201,7 @@ fun GroupDetailScreen(
                             email = email,
                             role = MemberRole.Member
                         )
-                        groupViewModel.addMemberToGroup(group.id, newMember)
+                        groupViewModel.addMemberToGroup(group.id, newMember, chatViewModel)
                         showAddMemberDialog = false
                     } catch (e: Exception) {
                         showError("Błąd podczas dodawania członka: ${e.message}")
@@ -250,7 +267,7 @@ fun GroupDetailScreen(
                         isLoading = true
                         scope.launch {
                             try {
-                                groupViewModel.removeMemberFromGroup(group.id, member.userId)
+                                groupViewModel.removeMemberFromGroup(group.id, member.userId, chatViewModel)
                                 memberToRemove = null
                             } catch (e: Exception) {
                                 showError("Błąd podczas usuwania członka: ${e.message}")
@@ -286,7 +303,7 @@ fun GroupDetailScreen(
                         isLoading = true
                         scope.launch {
                             try {
-                                groupViewModel.removeMemberFromGroup(group.id, currentUserId)
+                                groupViewModel.removeMemberFromGroup(group.id, userSession.id, chatViewModel)
                                 showDeleteConfirmDialog = false
                                 onNavigateBack()
                             } catch (e: Exception) {

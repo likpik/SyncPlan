@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.syncplan.viewmodel.ChatViewModel
 import com.example.syncplan.viewmodel.GroupViewModel
 import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 import com.example.syncplan.viewmodel.Group
@@ -32,6 +33,7 @@ import com.example.syncplan.viewmodel.MemberRole
 fun GroupsScreen(
     groupViewModel: GroupViewModel,
     calendarViewModel: ExtendedCalendarViewModel,
+    chatViewModel: ChatViewModel,
     onGroupClick: (Group) -> Unit = {}
 ) {
     val groups by groupViewModel.groups.collectAsState()
@@ -128,6 +130,8 @@ fun GroupsScreen(
                         createdBy = "user1", // TODO: Get from current user
                         creatorName = "Jan Kowalski", // TODO: Get from current user
                         creatorEmail = "jan@example.com", // TODO: Get from current user
+                        initialMembers = members,
+                        chatViewModel = chatViewModel,
                         color = color
                     )
                     showCreateDialog = false

@@ -31,6 +31,8 @@ data class ChatInfo(
     val id: String = UUID.randomUUID().toString(),
     val eventId: String? = null,
     val eventTitle: String? = null,
+    val groupId: String? = null,
+    val groupName: String? = null,
     val participants: List<String> = emptyList(),
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val lastMessage: ChatMessage? = null,
@@ -58,14 +60,37 @@ class ChatViewModel : ViewModel() {
         _currentUserId.value = userId
     }
 
-    fun createEventChat(event: Event): String {
+    fun createDirectChat(chatName: String, participants: List<String>, creatorId: String): String {
         val chatId = UUID.randomUUID().toString()
+        // Upewnij się, że twórca jest na liście uczestników
+        val allParticipants = (participants + creatorId).distinct()
 
         val chatInfo = ChatInfo(
             id = chatId,
-            eventId = event.id,
-            eventTitle = event.title,
-            participants = listOf(event.createdBy) + event.attendees
+            groupName = chatName, // Używamy tego pola do przechowywania nazwy
+            participants = allParticipants,
+            // eventId i groupId pozostają null
+        )
+
+        _chats.value = _chats.value + chatInfo
+        _messages.value = _messages.value + (chatId to emptyList())
+
+        // Wykorzystaj istniejącą funkcję do wysłania wiadomości systemowej
+        sendSystemMessage(
+            chatId = chatId,
+            content = "Czat \"$chatName\" został utworzony."
+        )
+
+        return chatId
+    }
+
+    fun createGroupChat(group: Group): String {
+        val chatId = UUID.randomUUID().toString()
+        val chatInfo = ChatInfo(
+            id = chatId,
+            groupId = group.id,
+            groupName = group.name,
+            participants = group.members.map { it.userId }
         )
 
         _chats.value = _chats.value + chatInfo
@@ -74,7 +99,7 @@ class ChatViewModel : ViewModel() {
         // Wyślij powitalną wiadomość systemową
         sendSystemMessage(
             chatId = chatId,
-            content = "Czat dla wydarzenia \"${event.title}\" został utworzony. Możecie tutaj ustalać szczegóły spotkania!"
+            content = "Czat dla grupy \"${group.name}\" został utworzony."
         )
 
         return chatId

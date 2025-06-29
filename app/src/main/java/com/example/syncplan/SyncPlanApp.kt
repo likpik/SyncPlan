@@ -1,5 +1,6 @@
 package com.example.syncplan
 
+import ChatListScreen
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -31,6 +32,7 @@ import com.example.syncplan.ui.event.EventDetailDialog
 import com.example.syncplan.viewmodel.*
 import com.example.syncplan.services.NotificationService
 import com.example.syncplan.utils.BillSplitCalculator
+import com.example.syncplan.viewmodel.GroupViewModelFactory
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Calendar : Screen("calendar", "Kalendarz", Icons.Filled.CalendarToday)
@@ -38,7 +40,6 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Chat : Screen("chat", "Czaty", Icons.AutoMirrored.Filled.Chat)
     object Profile : Screen("profile", "Profil", Icons.Filled.Person)
 }
-//a
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SyncPlanApp() {
@@ -48,8 +49,9 @@ fun SyncPlanApp() {
     // ViewModels
     val authViewModel: AuthViewModel = viewModel()
     val calendarViewModel: ExtendedCalendarViewModel = viewModel()
-    val groupViewModel: GroupViewModel = viewModel()
     val chatViewModel: ChatViewModel = viewModel()
+    val groupViewModelFactory = GroupViewModelFactory(chatViewModel)
+    val groupViewModel: GroupViewModel = viewModel(factory = groupViewModelFactory)
     val billSplitCalculator: BillSplitCalculator = viewModel()
 
     // Services
@@ -141,6 +143,7 @@ fun SyncPlanApp() {
                         GroupsScreen(
                             groupViewModel = groupViewModel,
                             calendarViewModel = calendarViewModel,
+                            chatViewModel = chatViewModel,
                             onGroupClick = { group ->
                                 navController.navigate("groupDetails/${group.id}")
                             }
@@ -171,15 +174,20 @@ fun SyncPlanApp() {
                         arguments = listOf(navArgument("groupId") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val groupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
-                        val group = groupViewModel.getGroupById(groupId)
+                        val group = groupId?.let { groupViewModel.getGroupById(it) }
 
                         if (group != null) {
                             GroupDetailScreen(
                                 group = group,
                                 groupViewModel = groupViewModel,
+                                calendarViewModel = calendarViewModel,
+                                chatViewModel = chatViewModel,
                                 userSession = currentUser!!,
                                 onNavigateBack = { navController.popBackStack() },
-                                onNavigateToCalendar = { groupId -> navController.navigate("calendar/$groupId") }
+                                onNavigateToCalendar = { groupId -> navController.navigate("calendar/$groupId") },
+                                onNavigateToChat = { chatId ->
+                                    navController.navigate("chat/$chatId")
+                                }
                             )
                         } else {
                             // Ekran błędu gdy grupa nie zostanie znaleziona
@@ -214,17 +222,43 @@ fun SyncPlanApp() {
                             }
                         }
                     }
+                    composable(
+                        route = "chat/{chatId}",
+                        arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val chatId = backStackEntry.arguments?.getString("chatId")
+                        if (chatId != null) {
+                            com.example.syncplan.ui.chat.ChatScreen(
+                                chatId = chatId,
+                                chatViewModel = chatViewModel,
+                                currentUserName = currentUser?.name ?: "Ja"
+                            )
+                        }
+                    }
 
                     composable(Screen.Chat.route) {
                         ChatListScreen(
                             chatViewModel = chatViewModel,
-                            currentUserId = currentUser?.id ?: "",
-                            onChatClick = { chatId ->
-                                chatViewModel.selectChat(chatId)
+                            authViewModel = authViewModel, // <-- DODAJ authViewModel
+                            onNavigateToChat = { chatId ->
+                                navController.navigate("chat/$chatId") // Zmiana z selectChat na navigate
                             }
                         )
                     }
 
+                    composable(
+                        route = "chat/{chatId}",
+                        arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val chatId = backStackEntry.arguments?.getString("chatId")
+                        if (chatId != null) {
+                            com.example.syncplan.ui.chat.ChatScreen(
+                                chatId = chatId,
+                                chatViewModel = chatViewModel,
+                                currentUserName = currentUser?.name ?: "Ja"
+                            )
+                        }
+                    }
                     composable(Screen.Profile.route) {
                         ProfileScreen(
                             authViewModel = authViewModel,
@@ -246,6 +280,7 @@ fun SyncPlanApp() {
                             showEventDetail = false
                             selectedEvent = null
                         }
+
                     )
                 }
             }
