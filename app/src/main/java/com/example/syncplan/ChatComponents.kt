@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -32,11 +33,13 @@ fun ChatScreen(
     chatId: String,
     chatViewModel: ChatViewModel,
     currentUserName: String = "Ja",
+    onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val messages by chatViewModel.messages.collectAsState()
     val currentUserId by chatViewModel.currentUserId.collectAsState()
     val chatMessages = messages[chatId] ?: emptyList()
+    val chatInfo = chatViewModel.getChatInfo(chatId)
     val listState = rememberLazyListState()
     var messageText by remember { mutableStateOf("") }
 
@@ -46,42 +49,65 @@ fun ChatScreen(
         }
     }
 
-    Column(
-        modifier = modifier.fillMaxSize()
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
-        ) {
-            items(chatMessages) { message ->
-                ChatMessageItem(
-                    message = message,
-                    isCurrentUser = message.senderId == currentUserId,
-                    currentUserName = currentUserName
-                )
-            }
-        }
-
-        ChatInputField(
-            messageText = messageText,
-            onMessageTextChange = { messageText = it },
-            onSendMessage = {
-                if (messageText.isNotBlank()) {
-                    chatViewModel.sendMessage(
-                        chatId = chatId,
-                        content = messageText.trim(),
-                        senderName = currentUserName
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = chatInfo?.groupName ?: chatInfo?.eventTitle ?: "Czat",
+                        style = MaterialTheme.typography.titleMedium
                     )
-                    messageText = ""
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Wróć"
+                        )
+                    }
                 }
-            },
-            modifier = Modifier.padding(16.dp)
-        )
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                items(chatMessages) { message ->
+                    ChatMessageItem(
+                        message = message,
+                        isCurrentUser = message.senderId == currentUserId,
+                        currentUserName = currentUserName
+                    )
+                }
+            }
+
+            ChatInputField(
+                messageText = messageText,
+                onMessageTextChange = { messageText = it },
+                onSendMessage = {
+                    if (messageText.isNotBlank()) {
+                        chatViewModel.sendMessage(
+                            chatId = chatId,
+                            content = messageText.trim(),
+                            senderName = currentUserName
+                        )
+                        messageText = ""
+                    }
+                },
+                modifier = Modifier.padding(16.dp)
+            )
+        }
     }
 }
 

@@ -231,7 +231,8 @@ fun SyncPlanApp() {
                             com.example.syncplan.ui.chat.ChatScreen(
                                 chatId = chatId,
                                 chatViewModel = chatViewModel,
-                                currentUserName = currentUser?.name ?: "Ja"
+                                currentUserName = currentUser?.name ?: "Ja",
+                                onBackClick = { navController.popBackStack() }
                             )
                         }
                     }
@@ -246,19 +247,6 @@ fun SyncPlanApp() {
                         )
                     }
 
-                    composable(
-                        route = "chat/{chatId}",
-                        arguments = listOf(navArgument("chatId") { type = NavType.StringType })
-                    ) { backStackEntry ->
-                        val chatId = backStackEntry.arguments?.getString("chatId")
-                        if (chatId != null) {
-                            com.example.syncplan.ui.chat.ChatScreen(
-                                chatId = chatId,
-                                chatViewModel = chatViewModel,
-                                currentUserName = currentUser?.name ?: "Ja"
-                            )
-                        }
-                    }
                     composable(Screen.Profile.route) {
                         ProfileScreen(
                             authViewModel = authViewModel,
