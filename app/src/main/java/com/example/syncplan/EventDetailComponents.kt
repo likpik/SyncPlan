@@ -5,11 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -48,7 +46,12 @@ fun EventDetailDialog(
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val groupChatId = event.groupId?.let { groupViewModel.getGroupById(it)?.chatId }
-    val tabs = listOf("Szczegóły", "Potwierdzenie udziału", "Rachunek")
+    val tabs = listOf("Szczegóły", "Potwierdź udział", "Rachunek")
+    LaunchedEffect(Unit) {
+        groupChatId?.let { chatId ->
+            chatViewModel.markRSVPUpdatesAsRead(chatId, currentUserId)
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -251,7 +254,9 @@ fun RSVPTab(
                         chatViewModel.sendRSVPUpdateMessage(
                             chatId = chatId,
                             userName = currentUserName,
-                            status = status.name
+                            status = status.name,
+                            eventId = event.id,
+                            eventTitle = event.title
                         )
                     }
                     // 3. Feedback dla użytkownika (opcjonalnie)
@@ -280,7 +285,7 @@ fun RSVPTab(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-        items(event.rsvpResponses.values.toList()) { response ->
+        items(currentEvent.rsvpResponses.values.toList()) { response ->
             RSVPResponseItem(response = response)
         }
     }

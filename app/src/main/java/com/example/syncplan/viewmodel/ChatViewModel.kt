@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDateTime
 import java.util.*
-import java.util.Objects.toString
 
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
@@ -17,7 +16,9 @@ data class ChatMessage(
     val timestamp: LocalDateTime = LocalDateTime.now(),
     val type: MessageType = MessageType.TEXT,
     val readBy: Set<String> = emptySet(),
-    val rsvpStatus: RSVPStatus? = null
+    val rsvpStatus: RSVPStatus? = null,
+    val eventTitle: String? = null,
+    val eventId: String? = null
 )
 
 enum class MessageType {
@@ -165,7 +166,13 @@ class ChatViewModel : ViewModel() {
         updateChatLastMessage(chatId, message)
     }
 
-    fun sendRSVPUpdateMessage(chatId: String, userName: String, status: String) {
+    fun sendRSVPUpdateMessage(
+        chatId: String,
+        userName: String,
+        status: String,
+        eventId: String,
+        eventTitle: String
+    ) {
         val rsvpStatus = RSVPStatus.valueOf(status)
         val content = when (rsvpStatus) {
             RSVPStatus.ATTENDING -> "$userName potwierdził/a udział w wydarzeniu"
@@ -180,7 +187,9 @@ class ChatViewModel : ViewModel() {
             senderName = "System",
             content = content,
             type = MessageType.RSVP_UPDATE,
-            rsvpStatus = RSVPStatus.valueOf(status)
+            rsvpStatus = RSVPStatus.valueOf(status),
+            eventId = eventId,
+            eventTitle = eventTitle
         )
 
         addMessageToChat(chatId, message)
@@ -261,20 +270,13 @@ class ChatViewModel : ViewModel() {
     }
 
     fun getUserChats(userId: String): List<ChatInfo> {
-        return _chats.value.filter { chat ->
-            chat.participants.contains(userId)
-        }.map { chat ->
-            val chatMessages = _messages.value[chat.id] ?: emptyList()
-            val unreadCount = chatMessages.count { message ->
-                !message.readBy.contains(userId) && message.senderId != userId &&
-                message.type != MessageType.SYSTEM
+        return _chats.value.map { chat ->
+            val messages = _messages.value[chat.id] ?: emptyList()
+            val unreadCount = messages.count {
+                it.type != MessageType.SYSTEM && !it.readBy.contains(userId)
             }
-
-            chat.copy(
-                lastMessage = chatMessages.lastOrNull(),
-                unreadCount = unreadCount
-            )
-        }.sortedByDescending { it.lastMessage?.timestamp }
+            chat.copy(unreadCount = unreadCount)
+        }
     }
 
 
@@ -385,7 +387,19 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    private fun markAllMessagesAsRead(chatId: String, userId: String) {
+    fun markRSVPUpdatesAsRead(chatId: String, userId: String) {
+        _messages.value = _messages.value.mapValues { (id, messagesList) ->
+            if (id == chatId) {
+                messagesList.map { msg ->
+                    if (msg.type == MessageType.RSVP_UPDATE && !msg.readBy.contains(userId)) {
+                        msg.copy(readBy = msg.readBy + userId)
+                    } else msg
+                }
+            } else messagesList
+        }
+    }
+
+    fun markAllMessagesAsRead(chatId: String, userId: String) {
         val currentMessages = _messages.value[chatId] ?: return
         val updatedMessages = currentMessages.map { message ->
             if (!message.readBy.contains(userId)) {

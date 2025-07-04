@@ -8,6 +8,7 @@ plugins {
 
 }
 apply(plugin = "com.google.gms.google-services")
+apply(plugin = "kotlin-kapt")
 android {
     namespace = "com.example.syncplan"
     compileSdk = 35
@@ -64,7 +65,9 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.15.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.facebook.android:facebook-android-sdk:16.3.0")
-    implementation ("com.google.firebase:firebase-messaging")
+    implementation ("androidx.room:room-runtime:2.6.1")
+    kapt ("androidx.room:room-compiler:2.6.1")
+    implementation ("androidx.room:room-ktx:2.6.1")
 
 
     implementation("androidx.compose.material:material-icons-extended:1.7.8")

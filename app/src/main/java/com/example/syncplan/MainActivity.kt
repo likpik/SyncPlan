@@ -14,13 +14,14 @@ import com.example.syncplan.ui.theme.SyncPlanTheme
 import com.facebook.CallbackManager
 import com.facebook.FacebookSdk
 import com.facebook.appevents.AppEventsLogger
+import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
     private lateinit var callbackManager: CallbackManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        FirebaseApp.initializeApp(this)
         // Initialize Facebook SDK
         FacebookSdk.sdkInitialize(applicationContext)
         AppEventsLogger.activateApp(application)

@@ -26,6 +26,7 @@ import com.example.syncplan.viewmodel.ChatMessage
 import com.example.syncplan.viewmodel.ChatViewModel
 import com.example.syncplan.viewmodel.MessageType
 import com.example.syncplan.viewmodel.ChatInfo
+import com.example.syncplan.viewmodel.RSVPStatus
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +49,9 @@ fun ChatScreen(
         if (chatMessages.isNotEmpty()) {
             listState.animateScrollToItem(chatMessages.size - 1)
         }
+    }
+    LaunchedEffect(chatId, currentUserId) {
+        chatViewModel.markAllMessagesAsRead(chatId, currentUserId)
     }
 
     Scaffold(
@@ -279,6 +283,15 @@ fun RSVPUpdateBubble(
     textColor: Color,
     modifier: Modifier = Modifier
 ) {
+
+    val (icon, color) = when (message.rsvpStatus) {
+        RSVPStatus.ATTENDING -> "✅" to Color(0xFF4CAF50)
+        RSVPStatus.DECLINED -> "❌" to Color(0xFFF44336)
+        RSVPStatus.MAYBE -> "❓" to Color(0xFFFF9800)
+        RSVPStatus.PENDING, null -> "⏳" to Color(0xFF9E9E9E)
+    }
+
+
     Card(
         modifier = modifier.fillMaxWidth(0.9f),
         shape = RoundedCornerShape(12.dp),
@@ -289,16 +302,27 @@ fun RSVPUpdateBubble(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "✅",
+                text = icon,
                 fontSize = 16.sp,
                 modifier = Modifier.padding(end = 8.dp)
             )
 
             Column(modifier = Modifier.weight(1f)) {
+
+                message.eventTitle?.let {
+                    Text(
+                        text = "Wydarzenie: $it",
+                        fontSize = 12.sp,
+                        color = color,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                }
+
                 Text(
                     text = message.content,
                     fontSize = 13.sp,
-                    color = textColor,
+                    color = color,
                     fontWeight = FontWeight.Medium
                 )
 
@@ -548,12 +572,11 @@ fun ChatListItem(
                 // OSTATNIA WIADOMOŚĆ - pod nazwą
                 chatInfo.lastMessage?.let { lastMessage ->
                     Spacer(modifier = Modifier.height(2.dp)) // Dodaj odstęp
-                    val (rsvpIcon, rsvpColor) = when {
-                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Biorę udział") -> "✅" to Color(0xFF4CAF50)
-                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Nie mogę") -> "❌" to Color(0xFFF44336)
-                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Może") -> "❓" to Color(0xFFFF9800)
-                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Jeszcze nie wiem") -> "⏳" to Color(0xFF9E9E9E)
-                        else -> "❕" to MaterialTheme.colorScheme.onSurfaceVariant
+                    val (rsvpIcon, rsvpColor) = when (lastMessage.rsvpStatus) {
+                        RSVPStatus.ATTENDING -> "✅" to Color(0xFF4CAF50)
+                        RSVPStatus.DECLINED -> "❌" to Color(0xFFF44336)
+                        RSVPStatus.MAYBE -> "❓" to Color(0xFFFF9800)
+                        RSVPStatus.PENDING, null -> "⏳" to Color(0xFF9E9E9E)
                     }
 
                     Text(
