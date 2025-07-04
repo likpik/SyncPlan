@@ -28,6 +28,8 @@ import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 import com.example.syncplan.viewmodel.ChatViewModel
 import com.example.syncplan.viewmodel.GroupViewModel
 import com.example.syncplan.utils.BillSplitCalculator
+import com.example.syncplan.utils.BillItem
+import com.example.syncplan.utils.SplitMethod
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,7 +111,8 @@ fun EventDetailDialog(
                     2 -> BillSplitTab(
                         event = event,
                         billSplitCalculator = billSplitCalculator,
-                        chatViewModel = chatViewModel
+                        chatViewModel = chatViewModel,
+                        groupViewModel = groupViewModel
                     )
                 }
             }
@@ -291,34 +294,131 @@ fun RSVPTab(
     }
 }
 
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BillSplitTab(
     event: Event,
     billSplitCalculator: BillSplitCalculator,
     chatViewModel: ChatViewModel,
+    groupViewModel: GroupViewModel,
     modifier: Modifier = Modifier
 ) {
     val splitResults by billSplitCalculator.splitResults.collectAsState()
+    val billItems by billSplitCalculator.billItems.collectAsState()
+    val tip by billSplitCalculator.tipPercentage.collectAsState()
+    val tax by billSplitCalculator.taxPercentage.collectAsState()
+
+    var newItemName by remember { mutableStateOf("") }
+    var newItemPrice by remember { mutableStateOf("") }
 
     LaunchedEffect(event) {
         val participantNames = event.attendees.associateWith { it }
         billSplitCalculator.setParticipantsFromEventAttendees(event.attendees, participantNames)
+        billSplitCalculator.setSplitMethod(SplitMethod.EQUAL)
     }
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        BillSplitInterface(
-            billSplitCalculator = billSplitCalculator,
-            onSummaryGenerated = { summary ->
-                event.chatId?.let { chatId ->
-                    chatViewModel.sendBillSplitMessage(chatId, summary)
+        item {
+            // Napiwek i podatek
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = tip.toString(),
+                    onValueChange = { billSplitCalculator.setTipPercentage(it.toDoubleOrNull() ?: 0.0) },
+                    label = { Text("Napiwek (%)") },
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = tax.toString(),
+                    onValueChange = { billSplitCalculator.setTaxPercentage(it.toDoubleOrNull() ?: 0.0) },
+                    label = { Text("Podatek (%)") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        item {
+            // Dodawanie pozycji
+            Text("Dodaj pozycję:")
+            OutlinedTextField(
+                value = newItemName,
+                onValueChange = { newItemName = it },
+                label = { Text("Nazwa pozycji") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = newItemPrice,
+                onValueChange = { newItemPrice = it },
+                label = { Text("Cena") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = {
+                    val price = newItemPrice.toDoubleOrNull()
+                    if (newItemName.isNotBlank() && price != null) {
+                        billSplitCalculator.addBillItem(
+                            BillItem(name = newItemName, price = price)
+                        )
+                        newItemName = ""
+                        newItemPrice = ""
+                    }
+                },
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text("Dodaj pozycję")
+            }
+        }
+
+        items(billItems) { item ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text("${item.name} - ${String.format("%.2f", item.price)} zł")
                 }
             }
-        )
+        }
+
+        item {
+            if (billSplitCalculator.validateSplit()) {
+                Button(
+                    onClick = {
+                        val chatId = event.groupId?.let { groupViewModel.getGroupById(it)?.chatId }
+                        val summary = billSplitCalculator.generateSummaryText()
+                        println("Sending bill split summary to chatId=$event.chatId")
+                        chatId?.let { chatId ->
+                            chatViewModel.sendBillSplitMessage(chatId, summary)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Wyślij podsumowanie do czatu")
+                }
+            } else {
+                Text(
+                    text = "Uzupełnij dane, aby wysłać podsumowanie",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+
+        items(splitResults) { result ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text("${result.participantName}: ${String.format("%.2f", result.totalAmount)} zł", fontWeight = FontWeight.Bold)
+                    result.items.forEach { (name, amount) ->
+                        Text("• $name: ${String.format("%.2f", amount)} zł")
+                    }
+                    if (result.tipAmount > 0) Text("• Napiwek: ${String.format("%.2f", result.tipAmount)} zł")
+                    if (result.taxAmount > 0) Text("• Podatek: ${String.format("%.2f", result.taxAmount)} zł")
+                }
+            }
+        }
     }
 }
 

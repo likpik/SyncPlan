@@ -1,6 +1,10 @@
 package com.example.syncplan
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +22,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import com.example.syncplan.viewmodel.ChatViewModel
 import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 import com.example.syncplan.viewmodel.GroupViewModel
@@ -48,11 +54,14 @@ fun GroupDetailScreen(
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showEditGroupDialog by remember { mutableStateOf(false) }
+    var showSmsInviteDialog by remember { mutableStateOf(false) }
     var selectedMemberForRole by remember { mutableStateOf<GroupMember?>(null) }
     var memberToRemove by remember { mutableStateOf<GroupMember?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    val context = LocalContext.current
+    val smsService = remember { SmsService(context) }
     val currentUserId = userSession.id
     val currentUserRole = group.members.find { it.userId == currentUserId }?.role
     val canManageMembers = currentUserRole == MemberRole.Admin
@@ -60,6 +69,22 @@ fun GroupDetailScreen(
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Permission launcher for SMS
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showSmsInviteDialog = true
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "Uprawnienie do wysyłania SMS jest wymagane",
+                    duration = SnackbarDuration.Long
+                )
+            }
+        }
+    }
 
     LaunchedEffect(eventsCount) {
         Log.d("GroupDetail", "GroupId=${group.id}, eventsCount=$eventsCount")
@@ -71,6 +96,29 @@ fun GroupDetailScreen(
                 message = message,
                 duration = SnackbarDuration.Short
             )
+        }
+    }
+
+    fun showSuccess(message: String) {
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+
+    fun requestSmsPermissionAndShowDialog() {
+        when {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.SEND_SMS
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                showSmsInviteDialog = true
+            }
+            else -> {
+                smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+            }
         }
     }
 
@@ -88,6 +136,9 @@ fun GroupDetailScreen(
                     if (canManageMembers) {
                         IconButton(onClick = { showAddMemberDialog = true }) {
                             Icon(Icons.Default.PersonAdd, contentDescription = "Dodaj członka")
+                        }
+                        IconButton(onClick = { requestSmsPermissionAndShowDialog() }) {
+                            Icon(Icons.Default.Sms, contentDescription = "Zaproś SMS")
                         }
                         IconButton(onClick = { showEditGroupDialog = true }) {
                             Icon(Icons.Default.Edit, contentDescription = "Edytuj grupę")
@@ -130,10 +181,17 @@ fun GroupDetailScreen(
                         fontWeight = FontWeight.Bold
                     )
                     if (canManageMembers) {
-                        TextButton(onClick = { showAddMemberDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Dodaj")
+                        Row {
+                            TextButton(onClick = { showAddMemberDialog = true }) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Dodaj")
+                            }
+                            TextButton(onClick = { requestSmsPermissionAndShowDialog() }) {
+                                Icon(Icons.Default.Sms, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("SMS")
+                            }
                         }
                     }
                 }
@@ -203,8 +261,43 @@ fun GroupDetailScreen(
                         )
                         groupViewModel.addMemberToGroup(group.id, newMember, chatViewModel)
                         showAddMemberDialog = false
+                        showSuccess("Członek został dodany do grupy")
                     } catch (e: Exception) {
                         showError("Błąd podczas dodawania członka: ${e.message}")
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            }
+        )
+    }
+
+    // Dialog zaproszenia SMS
+    if (showSmsInviteDialog) {
+        SmsInviteDialog(
+            group = group,
+            inviterName = userSession.name,
+            onDismiss = { showSmsInviteDialog = false },
+            onSendInvite = { phoneNumber ->
+                isLoading = true
+                scope.launch {
+                    try {
+                        val invitationCode = smsService.generateInvitationCode()
+                        val result = smsService.sendGroupInvitation(
+                            phoneNumber = phoneNumber,
+                            groupName = group.name,
+                            inviterName = userSession.name,
+                            invitationCode = invitationCode
+                        )
+
+                        if (result.isSuccess) {
+                            showSmsInviteDialog = false
+                            showSuccess("Zaproszenie SMS zostało wysłane")
+                        } else {
+                            showError("Błąd podczas wysyłania SMS: ${result.exceptionOrNull()?.message}")
+                        }
+                    } catch (e: Exception) {
+                        showError("Błąd podczas wysyłania zaproszenia: ${e.message}")
                     } finally {
                         isLoading = false
                     }
@@ -224,6 +317,7 @@ fun GroupDetailScreen(
                     try {
                         groupViewModel.updateGroup(group.id, name, description, color)
                         showEditGroupDialog = false
+                        showSuccess("Grupa została zaktualizowana")
                     } catch (e: Exception) {
                         showError("Błąd podczas edycji grupy: ${e.message}")
                     } finally {
@@ -245,6 +339,7 @@ fun GroupDetailScreen(
                     try {
                         groupViewModel.updateMemberRole(group.id, member.userId, newRole)
                         selectedMemberForRole = null
+                        showSuccess("Rola została zmieniona")
                     } catch (e: Exception) {
                         showError("Błąd podczas zmiany roli: ${e.message}")
                     } finally {
@@ -269,6 +364,7 @@ fun GroupDetailScreen(
                             try {
                                 groupViewModel.removeMemberFromGroup(group.id, member.userId, chatViewModel)
                                 memberToRemove = null
+                                showSuccess("Członek został usunięty z grupy")
                             } catch (e: Exception) {
                                 showError("Błąd podczas usuwania członka: ${e.message}")
                             } finally {
@@ -326,6 +422,169 @@ fun GroupDetailScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun SmsInviteDialog(
+    group: Group,
+    inviterName: String,
+    onDismiss: () -> Unit,
+    onSendInvite: (String) -> Unit
+) {
+    var phoneNumber by remember { mutableStateOf("") }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val smsService = remember { SmsService(context) }
+
+    fun validatePhoneNumber(phone: String): String? {
+        val cleanNumber = phone.replace("\\s+".toRegex(), "")
+        return when {
+            cleanNumber.isBlank() -> "Numer telefonu jest wymagany"
+            !cleanNumber.matches(Regex("^\\+?[1-9]\\d{1,14}$")) -> "Nieprawidłowy format numeru telefonu"
+            else -> null
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Sms,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Zaproś przez SMS",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Wyślij zaproszenie do grupy \"${group.name}\" przez SMS",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = {
+                        phoneNumber = it
+                        phoneError = validatePhoneNumber(it)
+                    },
+                    label = { Text("Numer telefonu") },
+                    placeholder = { Text("+48 123 456 789") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Phone, contentDescription = null)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    isError = phoneError != null,
+                    supportingText = {
+                        phoneError?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Podgląd wiadomości SMS:",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "🎉 Zaproszenie do grupy!\n\n$inviterName zaprosił Cię do grupy \"${group.name}\" w aplikacji SyncPlan.\n\nKod zaproszenia: [KOD]\n\nPobierz aplikację i wpisz kod zaproszenia aby dołączyć do grupy.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Status check
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (smsService.canSendSms()) Icons.Default.CheckCircle else Icons.Default.Error,
+                        contentDescription = null,
+                        tint = if (smsService.canSendSms()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (smsService.canSendSms()) "Gotowe do wysłania SMS" else "Brak uprawnień SMS",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (smsService.canSendSms()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Anuluj")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val validation = validatePhoneNumber(phoneNumber)
+                            if (validation == null) {
+                                val formattedNumber = smsService.formatPhoneNumber(phoneNumber)
+                                onSendInvite(formattedNumber)
+                            } else {
+                                phoneError = validation
+                            }
+                        },
+                        enabled = phoneNumber.isNotBlank() && phoneError == null && smsService.canSendSms()
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Wyślij SMS")
+                    }
+                }
+            }
+        }
     }
 }
 
