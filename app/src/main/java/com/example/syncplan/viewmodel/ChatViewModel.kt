@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDateTime
 import java.util.*
+import java.util.Objects.toString
 
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
@@ -15,7 +16,8 @@ data class ChatMessage(
     val content: String,
     val timestamp: LocalDateTime = LocalDateTime.now(),
     val type: MessageType = MessageType.TEXT,
-    val readBy: Set<String> = emptySet()
+    val readBy: Set<String> = emptySet(),
+    val rsvpStatus: RSVPStatus? = null
 )
 
 enum class MessageType {
@@ -60,6 +62,17 @@ class ChatViewModel : ViewModel() {
         _currentUserId.value = userId
     }
 
+    fun updateChatParticipants(chatId: String, newParticipants: List<String>) {
+        _chats.value = _chats.value.map { chat ->
+            if (chat.id == chatId) {
+                chat.copy(participants = newParticipants)
+            } else {
+                chat
+            }
+        }
+    }
+
+
     fun createDirectChat(chatName: String, participants: List<String>, creatorId: String): String {
         val chatId = UUID.randomUUID().toString()
         // Upewnij się, że twórca jest na liście uczestników
@@ -83,6 +96,23 @@ class ChatViewModel : ViewModel() {
 
         return chatId
     }
+
+    fun markSystemMessagesAsRead() {
+        val currentUserId = _currentUserId.value
+        _messages.value = _messages.value.mapValues { (chatId, messagesList) ->
+            val chat = _chats.value.find { it.id == chatId }
+            val participants = chat?.participants ?: emptyList()
+
+            messagesList.map { message ->
+                if (message.type == MessageType.SYSTEM && !message.readBy.contains(currentUserId)) {
+                    message.copy(readBy = participants.toSet())
+                } else {
+                    message
+                }
+            }
+        }
+    }
+
 
     fun createGroupChat(group: Group): String {
         val chatId = UUID.randomUUID().toString()
@@ -136,11 +166,12 @@ class ChatViewModel : ViewModel() {
     }
 
     fun sendRSVPUpdateMessage(chatId: String, userName: String, status: String) {
-        val content = when (status) {
-            "ATTENDING" -> "$userName potwierdził/a udział w wydarzeniu"
-            "DECLINED" -> "$userName nie będzie uczestniczyć w wydarzeniu"
-            "MAYBE" -> "$userName być może weźmie udział w wydarzeniu"
-            else -> "$userName zaktualizował/a odpowiedź RSVP"
+        val rsvpStatus = RSVPStatus.valueOf(status)
+        val content = when (rsvpStatus) {
+            RSVPStatus.ATTENDING -> "$userName potwierdził/a udział w wydarzeniu"
+            RSVPStatus.DECLINED -> "$userName nie będzie uczestniczyć w wydarzeniu"
+            RSVPStatus.MAYBE -> "$userName być może weźmie udział w wydarzeniu"
+            RSVPStatus.PENDING -> "$userName jeszcze nie wie, czy weźmie udział"
         }
 
         val message = ChatMessage(
@@ -148,7 +179,8 @@ class ChatViewModel : ViewModel() {
             senderId = "system",
             senderName = "System",
             content = content,
-            type = MessageType.RSVP_UPDATE
+            type = MessageType.RSVP_UPDATE,
+            rsvpStatus = RSVPStatus.valueOf(status)
         )
 
         addMessageToChat(chatId, message)
@@ -231,12 +263,32 @@ class ChatViewModel : ViewModel() {
     fun getUserChats(userId: String): List<ChatInfo> {
         return _chats.value.filter { chat ->
             chat.participants.contains(userId)
-        }.sortedByDescending { it.lastMessage?.timestamp ?: it.createdAt }
+        }.map { chat ->
+            val chatMessages = _messages.value[chat.id] ?: emptyList()
+            val unreadCount = chatMessages.count { message ->
+                !message.readBy.contains(userId) && message.senderId != userId &&
+                message.type != MessageType.SYSTEM
+            }
+
+            chat.copy(
+                lastMessage = chatMessages.lastOrNull(),
+                unreadCount = unreadCount
+            )
+        }.sortedByDescending { it.lastMessage?.timestamp }
     }
 
+
     fun getUnreadChatsCount(userId: String): Int {
-        return _chats.value.count { chat ->
-            chat.participants.contains(userId) && chat.unreadCount > 0
+        return _chats.value.filter { chat ->
+            chat.participants.contains(userId)
+        }.count { chat ->
+            val chatMessages = _messages.value[chat.id] ?: emptyList()
+            val unreadCount = chatMessages.count { message ->
+                !message.readBy.contains(userId) &&
+                        message.senderId != userId &&
+                        message.type != MessageType.SYSTEM // Wyłącz wiadomości systemowe
+            }
+            unreadCount > 0
         }
     }
 

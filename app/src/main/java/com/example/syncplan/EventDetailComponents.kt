@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -26,6 +28,7 @@ import com.example.syncplan.viewmodel.RSVPStatus
 import com.example.syncplan.viewmodel.RSVPResponse
 import com.example.syncplan.viewmodel.ExtendedCalendarViewModel
 import com.example.syncplan.viewmodel.ChatViewModel
+import com.example.syncplan.viewmodel.GroupViewModel
 import com.example.syncplan.utils.BillSplitCalculator
 import java.time.format.DateTimeFormatter
 
@@ -33,29 +36,48 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun EventDetailDialog(
     event: Event,
+    groupViewModel: GroupViewModel,
     currentUserId: String,
     currentUserName: String,
     calendarViewModel: ExtendedCalendarViewModel,
     chatViewModel: ChatViewModel,
     billSplitCalculator: BillSplitCalculator,
     onDismiss: () -> Unit,
+    onNavigateToGroupChat: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Szczegóły", "RSVP", "Czat", "Rachunek")
+    val groupChatId = event.groupId?.let { groupViewModel.getGroupById(it)?.chatId }
+    val tabs = listOf("Szczegóły", "Potwierdzenie udziału", "Rachunek")
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
             Column {
                 EventDetailHeader(
                     event = event,
                     onClose = onDismiss
                 )
+
+                if (groupChatId != null) {
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onNavigateToGroupChat(groupChatId)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(6.dp)
+                    ) {
+                        Icon(Icons.Default.Chat, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Przejdź do czatu grupy")
+                    }
+                }
 
                 TabRow(selectedTabIndex = selectedTab) {
                     tabs.forEachIndexed { index, title ->
@@ -67,19 +89,21 @@ fun EventDetailDialog(
                     }
                 }
 
+
+            }
+
                 when (selectedTab) {
                     0 -> EventDetailsTab(event = event)
                     1 -> RSVPTab(
                         event = event,
                         currentUserId = currentUserId,
-                        calendarViewModel = calendarViewModel
-                    )
-                    2 -> ChatTab(
-                        chatId = event.chatId ?: "",
+                        calendarViewModel = calendarViewModel,
                         chatViewModel = chatViewModel,
+                        groupViewModel = groupViewModel,
                         currentUserName = currentUserName
                     )
-                    3 -> BillSplitTab(
+
+                    2 -> BillSplitTab(
                         event = event,
                         billSplitCalculator = billSplitCalculator,
                         chatViewModel = chatViewModel
@@ -88,7 +112,7 @@ fun EventDetailDialog(
             }
         }
     }
-}
+
 
 @Composable
 fun EventDetailHeader(
@@ -99,7 +123,7 @@ fun EventDetailHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -182,76 +206,86 @@ fun RSVPTab(
     event: Event,
     currentUserId: String,
     calendarViewModel: ExtendedCalendarViewModel,
-    modifier: Modifier = Modifier
-) {
-    val rsvpStats = calendarViewModel.getRSVPStats(event.id)
-    val currentUserResponse = event.rsvpResponses[currentUserId]
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        RSVPStatsCard(rsvpStats = rsvpStats)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Twoja odpowiedź",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        RSVPResponseSection(
-            currentResponse = currentUserResponse?.status ?: RSVPStatus.PENDING,
-            onResponseChanged = { status, note, guestCount ->
-                calendarViewModel.respondToRSVP(
-                    eventId = event.id,
-                    userId = currentUserId,
-                    status = status,
-                    note = note,
-                    guestCount = guestCount
-                )
-            }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Odpowiedzi uczestników",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        RSVPResponsesList(responses = event.rsvpResponses.values.toList())
-    }
-}
-
-@Composable
-fun ChatTab(
-    chatId: String,
     chatViewModel: ChatViewModel,
+    groupViewModel: GroupViewModel,
     currentUserName: String,
     modifier: Modifier = Modifier
 ) {
-    if (chatId.isBlank()) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Czat nie jest dostępny dla tego wydarzenia")
+    val events by calendarViewModel.events.collectAsState()
+    val currentEvent = events.find { it.id == event.id } ?: event
+    val rsvpStats = calendarViewModel.getRSVPStats(currentEvent.id)
+    val currentUserResponse = currentEvent.rsvpResponses[currentUserId]
+    val groupChatId = event.groupId?.let { groupViewModel.getGroupById(it)?.chatId }
+
+    var showFeedback by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            RSVPStatsCard(rsvpStats = rsvpStats)
         }
-    } else {
-        com.example.syncplan.ui.chat.ChatScreen(
-            chatId = chatId,
-            chatViewModel = chatViewModel,
-            currentUserName = currentUserName,
-            modifier = modifier
-        )
+        item {
+            Text(
+                text = "Twoja odpowiedź",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        item {
+            RSVPResponseSection(
+                currentResponse = currentUserResponse?.status ?: RSVPStatus.PENDING,
+                onResponseChanged = { status, note, guestCount ->
+                    calendarViewModel.respondToRSVP(
+                        eventId = event.id,
+                        userId = currentUserId,
+                        status = status,
+                        note = note,
+                        guestCount = guestCount
+                    )
+                    groupChatId?.let { chatId ->
+                        chatViewModel.sendRSVPUpdateMessage(
+                            chatId = chatId,
+                            userName = currentUserName,
+                            status = status.name
+                        )
+                    }
+                    // 3. Feedback dla użytkownika (opcjonalnie)
+                    showFeedback = true
+                }
+            )
+        }
+        item {
+            if (showFeedback) {
+                Snackbar(
+                    modifier = Modifier.padding(8.dp),
+                    action = {
+                        TextButton(onClick = { showFeedback = false }) { Text("OK") }
+                    }
+                ) {
+                    Text("Odpowiedź została zapisana i wysłana do czatu grupy.")
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Odpowiedzi uczestników",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        items(event.rsvpResponses.values.toList()) { response ->
+            RSVPResponseItem(response = response)
+        }
     }
 }
+
 
 @Composable
 fun BillSplitTab(
@@ -447,16 +481,6 @@ fun RSVPResponseSection(
                 }
             }
 
-            if (selectedStatus == RSVPStatus.ATTENDING) {
-                OutlinedTextField(
-                    value = guestCount.toString(),
-                    onValueChange = { guestCount = it.toIntOrNull() ?: 0 },
-                    label = { Text("Liczba gości") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                )
-            }
 
             OutlinedTextField(
                 value = note,
@@ -505,7 +529,7 @@ fun RSVPResponseItem(
     val (statusText, statusColor) = when (response.status) {
         RSVPStatus.ATTENDING -> "Bierze udział" to Color(0xFF4CAF50)
         RSVPStatus.DECLINED -> "Nie może" to Color(0xFFF44336)
-        RSVPStatus.MAYBE -> "Może" to Color(0xFFFF9800)
+        RSVPStatus.MAYBE -> "Możliwe" to Color(0xFFFF9800)
         RSVPStatus.PENDING -> "Oczekuje" to Color(0xFF9E9E9E)
     }
 

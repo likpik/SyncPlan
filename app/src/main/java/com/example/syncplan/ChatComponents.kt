@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.syncplan.viewmodel.ChatMessage
@@ -500,6 +501,7 @@ fun ChatListItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .height(90.dp)
             .padding(horizontal = 16.dp, vertical = 4.dp),
         onClick = onClick,
         colors = CardDefaults.cardColors(
@@ -509,12 +511,12 @@ fun ChatListItem(
         )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
@@ -524,38 +526,65 @@ fun ChatListItem(
                         ?: chatInfo.eventTitle?.firstOrNull()?.uppercase()
                         ?: "C",
                     color = MaterialTheme.colorScheme.onPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    // Zmień logikę pobierania nazwy
-                    text = chatInfo.groupName ?: chatInfo.eventTitle ?: "Czat",
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
             }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                // NAZWA CZATU - wyróżniona
+                Text(
+                    text = chatInfo.groupName ?: chatInfo.eventTitle ?: "Czat",
+                    fontWeight = FontWeight.SemiBold, // Zmiana z Medium na SemiBold
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface // Dodaj wyraźny kolor
+                )
 
+                // OSTATNIA WIADOMOŚĆ - pod nazwą
                 chatInfo.lastMessage?.let { lastMessage ->
+                    Spacer(modifier = Modifier.height(2.dp)) // Dodaj odstęp
+                    val (rsvpIcon, rsvpColor) = when {
+                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Biorę udział") -> "✅" to Color(0xFF4CAF50)
+                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Nie mogę") -> "❌" to Color(0xFFF44336)
+                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Może") -> "❓" to Color(0xFFFF9800)
+                        lastMessage.type == MessageType.RSVP_UPDATE && lastMessage.content.contains("Jeszcze nie wiem") -> "⏳" to Color(0xFF9E9E9E)
+                        else -> "❕" to MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+
                     Text(
                         text = when (lastMessage.type) {
                             MessageType.SYSTEM -> "🔔 ${lastMessage.content}"
-                            MessageType.RSVP_UPDATE -> "✅ ${lastMessage.content}"
+                            MessageType.RSVP_UPDATE -> "$rsvpIcon ${lastMessage.content}"
                             MessageType.WEATHER_UPDATE -> "🌤️ ${lastMessage.content}"
                             MessageType.BILL_SPLIT -> "💰 ${lastMessage.content}"
                             MessageType.EVENT_UPDATE -> "📅 ${lastMessage.content}"
                             else -> "${lastMessage.senderName}: ${lastMessage.content}"
                         },
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
+                        fontSize = 13.sp,
+                        color = if (lastMessage.type == MessageType.RSVP_UPDATE) rsvpColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } ?: run {
+                    // Jeśli brak ostatniej wiadomości
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Brak wiadomości",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                     )
                 }
             }
 
             Column(
-                horizontalAlignment = Alignment.End
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
             ) {
                 chatInfo.lastMessage?.let { lastMessage ->
                     Text(
@@ -568,7 +597,7 @@ fun ChatListItem(
                 if (chatInfo.unreadCount > 0) {
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(18.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.error),
                         contentAlignment = Alignment.Center
@@ -584,3 +613,4 @@ fun ChatListItem(
             }
         }
     }
+}

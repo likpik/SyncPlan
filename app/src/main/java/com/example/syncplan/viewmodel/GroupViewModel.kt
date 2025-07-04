@@ -117,9 +117,10 @@ class GroupViewModel(private val chatViewModel: ChatViewModel) : ViewModel() {
             Group(
                 name = "Znajomi ze studiów",
                 description = "Grupa do organizowania spotkań koleżeńskich",
-                createdBy = "user1",
+                createdBy = "current_user",
                 members = listOf(
-                    GroupMember("user1", "Jan Kowalski", "jan@example.com", MemberRole.Admin),
+                    GroupMember("current_user", "Ja", "current@example.com", MemberRole.Admin),
+                    GroupMember("user1", "Jan Kowalski", "jan@example.com"),
                     GroupMember("user2", "Anna Nowak", "anna@example.com"),
                     GroupMember("user3", "Piotr Wiśniewski", "piotr@example.com")
                 ),
@@ -128,8 +129,9 @@ class GroupViewModel(private val chatViewModel: ChatViewModel) : ViewModel() {
             Group(
                 name = "Praca - Zespół",
                 description = "Grupa robocza do planowania projektów",
-                createdBy = "user1",
+                createdBy = "current_user",
                 members = listOf(
+                    GroupMember("current_user", "Ja", "current@example.com"),
                     GroupMember("user1", "Jan Kowalski", "jan@example.com", MemberRole.Admin),
                     GroupMember("user4", "Katarzyna Zielińska", "kasia@company.com"),
                     GroupMember("user5", "Tomasz Kowalczyk", "tomasz@company.com")
@@ -238,6 +240,39 @@ class GroupViewModel(private val chatViewModel: ChatViewModel) : ViewModel() {
             group.members.any { it.userId == userId }
         }
     }
+
+
+
+    fun updateCurrentUserInSampleGroups(userId: String, userName: String, userEmail: String) {
+        val updatedGroups = _groups.value.map { group ->
+            val updatedMembers = group.members.map { member ->
+                if (member.userId == "current_user") {
+                    member.copy(
+                        userId = userId,
+                        name = userName,
+                        email = userEmail
+                    )
+                } else {
+                    member
+                }
+            }
+
+            val updatedGroup = group.copy(
+                members = updatedMembers,
+                createdBy = if (group.createdBy == "current_user") userId else group.createdBy
+            )
+
+            // Zaktualizuj również czat grupowy
+            updatedGroup.chatId?.let { chatId ->
+                chatViewModel.updateChatParticipants(chatId, updatedMembers.map { it.userId })
+            }
+
+            updatedGroup
+        }
+
+        _groups.value = updatedGroups
+    }
+
 
     // Update group details
     suspend fun updateGroup(groupId: String, name: String, description: String, color: String) {

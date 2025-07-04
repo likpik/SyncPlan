@@ -68,6 +68,9 @@ fun SyncPlanApp() {
     LaunchedEffect(currentUser) {
         currentUser?.let { user ->
             chatViewModel.setCurrentUser(user.id)
+
+            groupViewModel.updateCurrentUserInSampleGroups(user.id, user.name, user.email)
+            chatViewModel.markSystemMessagesAsRead()
         }
     }
 
@@ -259,6 +262,7 @@ fun SyncPlanApp() {
                 if (showEventDetail && selectedEvent != null) {
                     EventDetailDialog(
                         event = selectedEvent!!,
+                        groupViewModel = groupViewModel,
                         currentUserId = currentUser?.id ?: "",
                         currentUserName = currentUser?.name ?: "Nieznany użytkownik",
                         calendarViewModel = calendarViewModel,
@@ -267,7 +271,8 @@ fun SyncPlanApp() {
                         onDismiss = {
                             showEventDetail = false
                             selectedEvent = null
-                        }
+                        },
+                        onNavigateToGroupChat = { chatId -> navController.navigate("chat/$chatId") }
 
                     )
                 }
