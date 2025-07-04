@@ -1,4 +1,4 @@
-package com.example.sharedplanner.ui.profile
+package com.example.syncplan.ui.profile
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -8,12 +8,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.sharedplanner.viewmodel.AuthViewModel
+import com.example.syncplan.viewmodel.AuthViewModel
 
 @Composable
 fun ProfileScreen(
     authViewModel: AuthViewModel,
-    calendarViewModel: Any? = null // Możesz usunąć ten parametr, jeśli nie jest potrzebny
+    calendarViewModel: Any? = null
 ) {
     val user by authViewModel.currentUser.collectAsState()
     val isLoading by authViewModel.isLoading.collectAsState()

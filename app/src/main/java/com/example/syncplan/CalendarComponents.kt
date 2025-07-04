@@ -1,4 +1,4 @@
-package com.example.sharedplanner.ui.calendar
+package com.example.syncplan.ui.calendar
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -16,9 +16,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.sharedplanner.viewmodel.Event
-import com.example.sharedplanner.viewmodel.AvailabilitySlot
-import com.example.sharedplanner.viewmodel.Group
+import com.example.syncplan.viewmodel.Event
+import com.example.syncplan.viewmodel.AvailabilitySlot
+import com.example.syncplan.viewmodel.Group
+import com.example.syncplan.viewmodel.Location
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -68,6 +69,7 @@ fun EventCard(
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
+
                 Text(
                     text = "${event.startDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${event.endDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))}",
                     fontSize = 12.sp,
@@ -83,6 +85,7 @@ fun EventCard(
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
+
                     Text(
                         text = "${event.attendees.size} uczestników",
                         fontSize = 12.sp,
@@ -130,7 +133,6 @@ fun AvailabilityCard(
             )
 
             Spacer(modifier = Modifier.weight(1f))
-
             Text(
                 text = if (availabilitySlot.isAvailable) "Dostępny" else "Zajęty",
                 fontSize = 12.sp,
@@ -146,7 +148,7 @@ fun AddEventDialog(
     selectedDate: LocalDate,
     groups: List<Group>,
     onDismiss: () -> Unit,
-    onEventAdded: (String, String, LocalDateTime, LocalDateTime, List<String>) -> Unit
+    onEventAdded: (String, String, LocalDateTime, LocalDateTime, List<String>, groupId: String?, Location?) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -217,7 +219,6 @@ fun AddEventDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
                 Text(
                     text = "Grupa (opcjonalnie)",
                     fontSize = 16.sp,
@@ -254,7 +255,6 @@ fun AddEventDialog(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -275,7 +275,9 @@ fun AddEventDialog(
                                     description,
                                     LocalDateTime.of(selectedDate, startTime),
                                     LocalDateTime.of(selectedDate, endTime),
-                                    attendees
+                                    attendees,
+                                    selectedGroup?.id,
+                                    null
                                 )
                             }
                         },
@@ -283,119 +285,6 @@ fun AddEventDialog(
                         enabled = title.isNotBlank()
                     ) {
                         Text("Dodaj")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AvailabilityDialog(
-    selectedDate: LocalDate,
-    onDismiss: () -> Unit,
-    onAvailabilitySet: (LocalDate, LocalTime, LocalTime, Boolean) -> Unit
-) {
-    var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
-    var endTime by remember { mutableStateOf(LocalTime.of(17, 0)) }
-    var isAvailable by remember { mutableStateOf(true) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Text(
-                    text = "Ustaw dostępność",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Text(
-                    text = "Data: ${selectedDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"))}",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TimePickerField(
-                        label = "Od",
-                        time = startTime,
-                        onTimeChanged = { startTime = it },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    TimePickerField(
-                        label = "Do",
-                        time = endTime,
-                        onTimeChanged = { endTime = it },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Status",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = isAvailable,
-                        onClick = { isAvailable = true }
-                    )
-                    Text(
-                        text = "Dostępny",
-                        modifier = Modifier.padding(start = 8.dp, end = 16.dp)
-                    )
-
-                    RadioButton(
-                        selected = !isAvailable,
-                        onClick = { isAvailable = false }
-                    )
-                    Text(
-                        text = "Zajęty",
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Anuluj")
-                    }
-
-                    Button(
-                        onClick = {
-                            onAvailabilitySet(selectedDate, startTime, endTime, isAvailable)
-                            onDismiss()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Zapisz")
                     }
                 }
             }
@@ -493,6 +382,117 @@ fun TimePickerDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("OK")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AvailabilityDialog(
+    selectedDate: LocalDate,
+    onDismiss: () -> Unit,
+    onAvailabilitySet: (LocalDate, LocalTime, LocalTime, Boolean) -> Unit
+) {
+    var startTime by remember { mutableStateOf(LocalTime.of(9, 0)) }
+    var endTime by remember { mutableStateOf(LocalTime.of(17, 0)) }
+    var isAvailable by remember { mutableStateOf(true) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Text(
+                    text = "Ustaw dostępność",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Text(
+                    text = "Data: ${selectedDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"))}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TimePickerField(
+                        label = "Od",
+                        time = startTime,
+                        onTimeChanged = { startTime = it },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    TimePickerField(
+                        label = "Do",
+                        time = endTime,
+                        onTimeChanged = { endTime = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Status",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = isAvailable,
+                        onClick = { isAvailable = true }
+                    )
+                    Text(
+                        text = "Dostępny",
+                        modifier = Modifier.padding(start = 8.dp, end = 16.dp)
+                    )
+
+                    RadioButton(
+                        selected = !isAvailable,
+                        onClick = { isAvailable = false }
+                    )
+                    Text(
+                        text = "Zajęty",
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Anuluj")
+                    }
+
+                    Button(
+                        onClick = {
+                            onAvailabilitySet(selectedDate, startTime, endTime, isAvailable)
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Zapisz")
                     }
                 }
             }

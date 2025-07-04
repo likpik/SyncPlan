@@ -1,4 +1,4 @@
-package com.example.sharedplanner.viewmodel
+package com.example.syncplan.viewmodel
 
 import android.os.Bundle
 import androidx.lifecycle.ViewModel
@@ -8,7 +8,6 @@ import com.facebook.login.LoginResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONObject
 
 data class User(
     val id: String,
@@ -42,7 +41,6 @@ class AuthViewModel : ViewModel() {
         val accessToken = AccessToken.getCurrentAccessToken()
         val isLoggedIn = accessToken != null && !accessToken.isExpired
         _isLoggedIn.value = isLoggedIn
-
         if (isLoggedIn) {
             fetchUserInfo()
         }
@@ -54,7 +52,7 @@ class AuthViewModel : ViewModel() {
 
         val request = GraphRequest.newMeRequest(
             loginResult.accessToken
-        ) { jsonObject, response ->
+        ) { jsonObject, _ ->
             _isLoading.value = false
             if (jsonObject != null) {
                 try {
@@ -64,6 +62,7 @@ class AuthViewModel : ViewModel() {
                         email = jsonObject.optString("email", ""),
                         profilePictureUrl = "https://graph.facebook.com/${jsonObject.getString("id")}/picture?type=large"
                     )
+
                     _currentUser.value = user
                     _isLoggedIn.value = true
                 } catch (e: Exception) {
@@ -97,7 +96,7 @@ class AuthViewModel : ViewModel() {
     private fun fetchUserInfo() {
         val request = GraphRequest.newMeRequest(
             AccessToken.getCurrentAccessToken()
-        ) { jsonObject, response ->
+        ) { jsonObject, _ ->
             if (jsonObject != null) {
                 try {
                     val user = User(
@@ -106,6 +105,7 @@ class AuthViewModel : ViewModel() {
                         email = jsonObject.optString("email", ""),
                         profilePictureUrl = "https://graph.facebook.com/${jsonObject.getString("id")}/picture?type=large"
                     )
+
                     _currentUser.value = user
                 } catch (e: Exception) {
                     // Handle error silently
